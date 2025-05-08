@@ -1,0 +1,147 @@
+{% extends "network/layout.html" %}
+{% load static %}
+
+{% block body %}
+
+    <h1 class="m-3">{{ profile.username }}</h1>
+    <hr> <!-- a break line -->
+
+    <div class="m-3">
+        <h3 id="follower-count">Followers: {{ profile.followers.count }}</h3>
+        <h3>Following: {{ profile.following.count }}</h3>
+    </div>
+
+    <!-- If user is logged in and isn't the owner of this profile, allow the ability to follow/unfollow -->
+    {% if user.is_authenticated and user != profile %}
+        {% csrf_token %}
+        <button id="follow-button" class="btn btn-primary m-3" data-following="{{ is_following }}" data-profile-id="{{ profile.id }}"></button>
+    {% endif %}
+
+    <!-- Display all posts from the user -->
+    <h2 class="m-3">Posts</h2>
+    <div class="m-3 pagination">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+    
+            <span class="current">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+    
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+    {% for post in page_obj %}
+    <!-- Each post has a border and a bottom margin -->
+        <div class="border m-3 p-3">
+            <!-- Create a separate div for post content as well as edit field, so that i can make them invisible later-->
+            <div class="main-post" data-post-id="{{ post.id }}">
+                <h2><a href="{% url 'profile' post.poster.id %}">{{ post.poster }}</a></h2>
+                {% csrf_token %}
+                {% if user == post.poster and user.is_authenticated %}
+                    <a href="#" class="edit-anchor" data-post-id="{{ post.id }}">Edit</a>
+                {% endif %}
+                <p class="post-content" data-post-id="{{ post.id }}">{{ post.content }}</p>
+                <p class="text-secondary">{{ post.time_created }}</p>
+                <!-- Add data post id so we can select with JS later to update -->
+                <p class="text-secondary like-count" data-post-id="{{ post.id }}">❤️ {{ post.likes.count }}</p>
+                
+                <!-- Only allow user, even the owner to like the post if signed in -->
+                {% if user.is_authenticated %}
+                    <!-- Display unlike or like button according to user's liked posts, HTML will be changed in JS -->
+                    <button class="like-button btn btn-primary" data-post-id="{{ post.id }}" data-is-liking="{{ post.is_liking }}"></button>
+                {% endif %}
+                <!-- Also only allow owner to edit their own post -->
+            </div>
+
+            <!-- Set display to none initally for the edit form -->
+            {% if user == post.poster and user.is_authenticated %}
+            <div class="edit-field" data-post-id="{{ post.id }}" style="display: none">
+                <form class="edit-form" data-post-id="{{ post.id }}">
+                    <!-- Prefill text area with current content -->
+                    <!-- let content = document.querySelector(`.edit_content[data-post-id='${postId}']`); -->
+                    <textarea class="form-control edit-content mb-3" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
+                    <button type="submit" class="btn btn-success edit-button" data-post-id="{{ post.id }}">Save</button>
+                    <!-- Button to reopen the post content and just veto the edit -->
+                    <button type="button" class="btn btn-outline-danger close-button" data-post-id="{{ post.id }}">Close</button>
+                </form>
+            </div>
+            {% endif %}
+            
+        </div>
+    {% endfor %}
+
+    <script>
+        // Code will not work if user isn't signed in
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get the follow button
+            const followButton = document.getElementById('follow-button');
+            // Get the boolean variable whether the user is following the profile
+            let isFollowing = followButton.getAttribute('data-following') === 'True';
+            // Profile ID
+            const profile_id = followButton.getAttribute('data-profile-id');
+
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+
+            // Get the h3 that displays number of followers the profile has
+            const followerCount = document.getElementById('follower-count');
+
+            
+
+            // Determine the text content of the button according to isFollowing
+            followButton.textContent = isFollowing ? 'Unfollow' : 'Follow';
+
+            followButton.addEventListener('click', function() {
+
+                // Send PUT requests according to whether the user wants to follow or unfollow
+                fetch(`/profile/${profile_id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: JSON.stringify({
+                        follow: !isFollowing
+                    })
+                }).then(() => {
+                    // Change the boolean variable
+                    isFollowing = !isFollowing;
+
+                    // Re-determine the content of follow button
+                    followButton.textContent = isFollowing ? 'Unfollow' : 'Follow';
+
+                    // Fetch the updated follower count with the POST request
+                    return fetch(`/profile/${profile_id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrftoken
+                        }
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+
+                    // Change the HTML of follower count
+                    followerCount.innerHTML = `Followers: ${data.follower_count}`;
+                })
+            });
+        });
+    </script>
+    
+
+{% endblock %}
+
+{% block script %}
+    <script src="{% static 'network/index.js' %}"></script>
+    <script>
+        const user = "{{ user }}" 
+    </script> 
+{% endblock %}

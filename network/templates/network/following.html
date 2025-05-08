@@ -1,0 +1,97 @@
+{% extends "network/layout.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="m-3 pagination">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+
+            <span class="current">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+    {% for post in page_obj %}
+    <!-- Each post has a border and a bottom margin -->
+        <div class="border m-3 p-3">
+            <!-- Create a separate div for post content as well as edit field, so that i can make them invisible later-->
+            <div class="main-post" data-post-id="{{ post.id }}">
+                <h2><a href="{% url 'profile' post.poster.id %}">{{ post.poster }}</a></h2>
+                <p class="post-content" data-post-id="{{ post.id }}">{{ post.content }}</p>
+                <p class="text-secondary">{{ post.time_created }}</p>
+                <!-- Add data post id so we can select with JS later to update -->
+                <p class="text-secondary like-count" data-post-id="{{ post.id }}">❤️ {{ post.likes.count }}</p>
+                
+                <!-- Only allow user, even the owner to like the post if signed in -->
+                <!-- Display unlike or like button according to user's liked posts, HTML will be changed in JS -->
+                {% csrf_token %}
+                <button class="like-button btn btn-primary" data-post-id="{{ post.id }}" data-is-liking="{{ post.is_liking }}"></button>
+                <!-- Also only allow owner to edit their own post -->
+            </div>            
+        </div>
+    {% endfor %}
+
+
+<!-- Adding script to HTML because it's going to be fast -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // Give every single like/unlike button an event listener to conduct like process
+            document.querySelectorAll('.like-button').forEach(item => {
+                item.addEventListener('click', likeActions);
+
+                // Modify the inner html of the button to correlate with actual like status
+                let isLiking = item.getAttribute('data-is-liking').toLowerCase() === 'true';
+                item.textContent = isLiking ? 'Unlike' : 'Like';
+            })
+    
+        });
+
+        function likeActions(event) {
+            // Get post ID as well as whether user already liked or not
+            const postId = event.target.getAttribute('data-post-id');
+            let isLiking = event.target.getAttribute('data-is-liking').toLowerCase() === 'true'; // Have to compare with true, because it'll be a string, not a bool
+
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Modify content
+            fetch(`/post_actions/${postId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    like_status: !isLiking
+                })
+            })
+            // Send a GET request to get newly updated information
+            .then(() => {
+                return fetch(`/post_actions/${postId}`);
+            })
+            .then(response => response.json())
+
+            // Modify HTML content of the button as well as the like count
+            .then(data => {
+                document.querySelector(`.like-count[data-post-id='${postId}']`).innerHTML = `❤️ ${data.like_count}`;
+            })
+            // Asynchronously make the remaining changes to the HTML just to be on the safe side
+            .then(() => {
+                isLiking = !isLiking; // Change status
+
+                document.querySelector(`.like-button[data-post-id='${postId}']`).setAttribute('data-is-liking', isLiking);
+            })
+            .then(() => {
+                document.querySelector(`.like-button[data-post-id='${postId}']`).textContent = isLiking ? 'Unlike' : 'Like';
+            })
+        }
+    </script>
+{% endblock %}

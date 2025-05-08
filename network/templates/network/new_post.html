@@ -1,0 +1,32 @@
+{% extends "network/layout.html" %}
+
+{% block body %}
+    <h1 class="m-3">New Post</h1>
+    <form id="create-post" method="POST" class="m-3" action="{% url 'new_post' %}">
+        {% csrf_token %}
+        <textarea id="content" class="form-control" rows="10" name="content" required autofocus></textarea>
+        <button id="submit" class="btn btn-primary mt-3" type="submit">Post</button>
+    </form>
+    <!-- Adding direct JS because it's not a big block of code or anything -->
+    <script>
+        // Get submit input element to disable/enable
+        const submit = document.querySelector('#submit');
+
+        // Disable submit button by default
+        submit.disabled = true;
+
+        // Get 3 input fields
+        const content = document.querySelector('#content');
+
+        // Get form element to check for keyup
+        const form = document.querySelector('#create-post');
+        form.addEventListener('keyup', () => {
+            // Only turn on submit button when all 3 fields are filled
+            if (content.value.length > 0) {
+            submit.disabled = false;
+            } else {
+            submit.disabled = true;
+            }
+        });
+    </script>
+{% endblock %}
